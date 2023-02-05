@@ -104,9 +104,11 @@ function create_tab_index_args(tabId, args){
     return res
 }
 
-function get_extras_tab_index(){
-    const [,,...args] = [...arguments]
-    return [get_tab_index('mode_extras'), get_tab_index('extras_resize_mode'), ...args]
+function get_img2img_tab_index() {
+    let res = args_to_array(arguments)
+    res.splice(-2)
+    res[0] = get_tab_index('mode_img2img')
+    return res
 }
 
 function create_submit_args(args){
@@ -165,6 +167,15 @@ function submit_img2img(){
     return res
 }
 
+function modelmerger(){
+    var id = randomId()
+    requestProgress(id, gradioApp().getElementById('modelmerger_results_panel'), null, function(){})
+
+    var res = create_submit_args(arguments)
+    res[0] = id
+    return res
+}
+
 
 function ask_for_style_name(_, prompt_text, negative_prompt_text) {
     name_ = prompt('Style name:')
@@ -181,6 +192,26 @@ function confirm_clear_prompt(prompt, negative_prompt) {
 }
 
 
+promptTokecountUpdateFuncs = {}
+
+function recalculatePromptTokens(name){
+    if(promptTokecountUpdateFuncs[name]){
+        promptTokecountUpdateFuncs[name]()
+    }
+}
+
+function recalculate_prompts_txt2img(){
+    recalculatePromptTokens('txt2img_prompt')
+    recalculatePromptTokens('txt2img_neg_prompt')
+    return args_to_array(arguments);
+}
+
+function recalculate_prompts_img2img(){
+    recalculatePromptTokens('img2img_prompt')
+    recalculatePromptTokens('img2img_neg_prompt')
+    return args_to_array(arguments);
+}
+
 
 opts = {}
 onUiUpdate(function(){
@@ -189,8 +220,8 @@ onUiUpdate(function(){
 	json_elem = gradioApp().getElementById('settings_json')
 	if(json_elem == null) return;
 
-    textarea = json_elem.querySelector('textarea')
-    jsdata = textarea.value
+    var textarea = json_elem.querySelector('textarea')
+    var jsdata = textarea.value
     opts = JSON.parse(jsdata)
     executeCallbacks(optionsChangedCallbacks);
 
@@ -214,14 +245,27 @@ onUiUpdate(function(){
 
     json_elem.parentElement.style.display="none"
 
-	if (!txt2img_textarea) {
-		txt2img_textarea = gradioApp().querySelector("#txt2img_prompt > label > textarea");
-		txt2img_textarea?.addEventListener("input", () => update_token_counter("txt2img_token_button"));
-	}
-	if (!img2img_textarea) {
-		img2img_textarea = gradioApp().querySelector("#img2img_prompt > label > textarea");
-		img2img_textarea?.addEventListener("input", () => update_token_counter("img2img_token_button"));
-	}
+    function registerTextarea(id, id_counter, id_button){
+        var prompt = gradioApp().getElementById(id)
+        var counter = gradioApp().getElementById(id_counter)
+        var textarea = gradioApp().querySelector("#" + id + " > label > textarea");
+
+        if(counter.parentElement == prompt.parentElement){
+            return
+        }
+
+        prompt.parentElement.insertBefore(counter, prompt)
+        counter.classList.add("token-counter")
+        prompt.parentElement.style.position = "relative"
+
+		promptTokecountUpdateFuncs[id] = function(){ update_token_counter(id_button); }
+		textarea.addEventListener("input", promptTokecountUpdateFuncs[id]);
+    }
+
+    registerTextarea('txt2img_prompt', 'txt2img_token_counter', 'txt2img_token_button')
+    registerTextarea('txt2img_neg_prompt', 'txt2img_negative_token_counter', 'txt2img_negative_token_button')
+    registerTextarea('img2img_prompt', 'img2img_token_counter', 'img2img_token_button')
+    registerTextarea('img2img_neg_prompt', 'img2img_negative_token_counter', 'img2img_negative_token_button')
 
     show_all_pages = gradioApp().getElementById('settings_show_all_pages')
     settings_tabs = gradioApp().querySelector('#settings div')
@@ -234,7 +278,6 @@ onUiUpdate(function(){
         }
     }
 })
-
 
 onOptionsChanged(function(){
     elem = gradioApp().getElementById('sd_checkpoint_hash')
@@ -250,7 +293,7 @@ onOptionsChanged(function(){
 
 let txt2img_textarea, img2img_textarea = undefined;
 let wait_time = 800
-let token_timeout;
+let token_timeouts = {};
 
 function update_txt2img_tokens(...args) {
 	update_token_counter("txt2img_token_button")
@@ -267,9 +310,9 @@ function update_img2img_tokens(...args) {
 }
 
 function update_token_counter(button_id) {
-	if (token_timeout)
-		clearTimeout(token_timeout);
-	token_timeout = setTimeout(() => gradioApp().getElementById(button_id)?.click(), wait_time);
+	if (token_timeouts[button_id])
+		clearTimeout(token_timeouts[button_id]);
+	token_timeouts[button_id] = setTimeout(() => gradioApp().getElementById(button_id)?.click(), wait_time);
 }
 
 function restart_reload(){
@@ -285,4 +328,11 @@ function updateInput(target){
 	let e = new Event("input", { bubbles: true })
 	Object.defineProperty(e, "target", {value: target})
 	target.dispatchEvent(e);
+}
+
+
+var desiredCheckpointName = null;
+function selectCheckpoint(name){
+    desiredCheckpointName = name;
+    gradioApp().getElementById('change_checkpoint').click()
 }
