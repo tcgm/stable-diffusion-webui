@@ -39,6 +39,7 @@ set ACCELERATE="%VENV_DIR%\Scripts\accelerate.exe"
 if EXIST %ACCELERATE% goto :accelerate_launch
 
 :launch
+start firefox http://localhost:7860
 %PYTHON% launch.py %*
 pause
 exit /b
