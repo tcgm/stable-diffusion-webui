@@ -8,7 +8,7 @@ import torch
 import modules.face_restoration
 import modules.shared
 from modules import shared, devices, modelloader
-from modules.paths import script_path, models_path
+from modules.paths import models_path
 
 # codeformer people made a choice to include modified basicsr library to their project which makes
 # it utterly impossible to use it alongside with other libraries that also use basicsr, like GFPGAN.
@@ -36,6 +36,7 @@ def setup_model(dirname):
         from basicsr.utils.download_util import load_file_from_url
         from basicsr.utils import imwrite, img2tensor, tensor2img
         from facelib.utils.face_restoration_helper import FaceRestoreHelper
+        from facelib.detection.retinaface import retinaface
         from modules.shared import cmd_opts
 
         net_class = CodeFormer
@@ -54,7 +55,7 @@ def setup_model(dirname):
                 if self.net is not None and self.face_helper is not None:
                     self.net.to(devices.device_codeformer)
                     return self.net, self.face_helper
-                model_paths = modelloader.load_models(model_path, model_url, self.cmd_dir, download_name='codeformer-v0.1.0.pth')
+                model_paths = modelloader.load_models(model_path, model_url, self.cmd_dir, download_name='codeformer-v0.1.0.pth', ext_filter=['.pth'])
                 if len(model_paths) != 0:
                     ckpt_path = model_paths[0]
                 else:
@@ -65,6 +66,8 @@ def setup_model(dirname):
                 net.load_state_dict(checkpoint)
                 net.eval()
 
+                if hasattr(retinaface, 'device'):
+                    retinaface.device = devices.device_codeformer
                 face_helper = FaceRestoreHelper(1, face_size=512, crop_ratio=(1, 1), det_model='retinaface_resnet50', save_ext='png', use_parse=True, device=devices.device_codeformer)
 
                 self.net = net

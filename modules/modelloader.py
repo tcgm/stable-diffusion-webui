@@ -4,13 +4,12 @@ import shutil
 import importlib
 from urllib.parse import urlparse
 
-from basicsr.utils.download_util import load_file_from_url
 from modules import shared
-from modules.upscaler import Upscaler
+from modules.upscaler import Upscaler, UpscalerLanczos, UpscalerNearest, UpscalerNone
 from modules.paths import script_path, models_path
 
 
-def load_models(model_path: str, model_url: str = None, command_path: str = None, ext_filter=None, download_name=None) -> list:
+def load_models(model_path: str, model_url: str = None, command_path: str = None, ext_filter=None, download_name=None, ext_blacklist=None) -> list:
     """
     A one-and done loader to try finding the desired models in specified directories.
 
@@ -45,6 +44,11 @@ def load_models(model_path: str, model_url: str = None, command_path: str = None
                     full_path = file
                     if os.path.isdir(full_path):
                         continue
+                    if os.path.islink(full_path) and not os.path.exists(full_path):
+                        print(f"Skipping broken symlink: {full_path}")
+                        continue
+                    if ext_blacklist is not None and any([full_path.endswith(x) for x in ext_blacklist]):
+                        continue
                     if len(ext_filter) != 0:
                         model_name, extension = os.path.splitext(file)
                         if extension not in ext_filter:
@@ -54,6 +58,7 @@ def load_models(model_path: str, model_url: str = None, command_path: str = None
 
         if model_url is not None and len(output) == 0:
             if download_name is not None:
+                from basicsr.utils.download_util import load_file_from_url
                 dl = load_file_from_url(model_url, model_path, True, download_name)
                 output.append(dl)
             else:
@@ -82,9 +87,13 @@ def cleanup_models():
     src_path = models_path
     dest_path = os.path.join(models_path, "Stable-diffusion")
     move_files(src_path, dest_path, ".ckpt")
+    move_files(src_path, dest_path, ".safetensors")
     src_path = os.path.join(root_path, "ESRGAN")
     dest_path = os.path.join(models_path, "ESRGAN")
     move_files(src_path, dest_path)
+    src_path = os.path.join(models_path, "BSRGAN")
+    dest_path = os.path.join(models_path, "ESRGAN")
+    move_files(src_path, dest_path, ".pth")
     src_path = os.path.join(root_path, "gfpgan")
     dest_path = os.path.join(models_path, "GFPGAN")
     move_files(src_path, dest_path)
@@ -119,11 +128,27 @@ def move_files(src_path: str, dest_path: str, ext_filter: str = None):
         pass
 
 
+builtin_upscaler_classes = []
+forbidden_upscaler_classes = set()
+
+
+def list_builtin_upscalers():
+    load_upscalers()
+
+    builtin_upscaler_classes.clear()
+    builtin_upscaler_classes.extend(Upscaler.__subclasses__())
+
+
+def forbid_loaded_nonbuiltin_upscalers():
+    for cls in Upscaler.__subclasses__():
+        if cls not in builtin_upscaler_classes:
+            forbidden_upscaler_classes.add(cls)
+
+
 def load_upscalers():
-    sd = shared.script_path
     # We can only do this 'magic' method to dynamically load upscalers if they are referenced,
     # so we'll try to import any _model.py files before looking in __subclasses__
-    modules_dir = os.path.join(sd, "modules")
+    modules_dir = os.path.join(shared.script_path, "modules")
     for file in os.listdir(modules_dir):
         if "_model.py" in file:
             model_name = file.replace("_model.py", "")
@@ -132,22 +157,20 @@ def load_upscalers():
                 importlib.import_module(full_model)
             except:
                 pass
-    datas = []
-    c_o = vars(shared.cmd_opts)
-    for cls in Upscaler.__subclasses__():
-        name = cls.__name__
-        module_name = cls.__module__
-        module = importlib.import_module(module_name)
-        class_ = getattr(module, name)
-        cmd_name = f"{name.lower().replace('upscaler', '')}_models_path"
-        opt_string = None
-        try:
-            if cmd_name in c_o:
-                opt_string = c_o[cmd_name]
-        except:
-            pass
-        scaler = class_(opt_string)
-        for child in scaler.scalers:
-            datas.append(child)
 
-    shared.sd_upscalers = datas
+    datas = []
+    commandline_options = vars(shared.cmd_opts)
+    for cls in Upscaler.__subclasses__():
+        if cls in forbidden_upscaler_classes:
+            continue
+
+        name = cls.__name__
+        cmd_name = f"{name.lower().replace('upscaler', '')}_models_path"
+        scaler = cls(commandline_options.get(cmd_name, None))
+        datas += scaler.scalers
+
+    shared.sd_upscalers = sorted(
+        datas,
+        # Special case for UpscalerNone keeps it at the beginning of the list.
+        key=lambda x: x.name.lower() if not isinstance(x.scaler, (UpscalerNone, UpscalerLanczos, UpscalerNearest)) else ""
+    )
