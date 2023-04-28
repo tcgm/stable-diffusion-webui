@@ -33,7 +33,8 @@ goto :launch
 :skip_venv
 
 :launch
-%PYTHON% launch.py
+start firefox http://localhost:7860
+%PYTHON% launch.py %*
 pause
 exit /b
 
