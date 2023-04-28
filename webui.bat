@@ -57,6 +57,7 @@ exit /b
 
 :accelerate_launch
 echo Accelerating
+start firefox http://localhost:7860
 %ACCELERATE% launch --num_cpu_threads_per_process=6 launch.py
 pause
 exit /b
