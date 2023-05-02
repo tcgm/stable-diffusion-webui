@@ -38,3 +38,5 @@ webui.bat.bak
 models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
 models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
 *.bak
+/cache.json*
+/config_states/
