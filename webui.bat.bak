@@ -1,6 +1,6 @@
 @echo off
 
-if not defined PYTHON (set PYTHON=python)
+if not defined PYTHON (set PYTHON=py -3.10)
 if not defined VENV_DIR (set "VENV_DIR=%~dp0%venv")
 
 
@@ -57,6 +57,7 @@ exit /b
 
 :accelerate_launch
 echo Accelerating
+start firefox http://localhost:7860
 %ACCELERATE% launch --num_cpu_threads_per_process=6 launch.py
 pause
 exit /b

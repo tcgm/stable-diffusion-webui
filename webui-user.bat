@@ -3,8 +3,6 @@
 set PYTHON=py -3.10
 set GIT=
 set VENV_DIR=
-set COMMANDLINE_ARGS=--medvram --lowram --listen --allow-code --enable-insecure-extension-access --opt-split-attention
-
-start firefox http://localhost:7860
+set COMMANDLINE_ARGS=--listen --allow-code --enable-insecure-extension-access --opt-split-attention --autolaunch --medvram --no-half-vae
 
 call webui.bat
