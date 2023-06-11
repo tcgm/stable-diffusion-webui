@@ -40,6 +40,9 @@ models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
 *.bak
 /cache.json*
 /config_states/
+/node_modules
+/package-lock.json
+/.coverage*
 models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
 models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
 models/Stable-diffusion/Put Stable Diffusion checkpoints here.txt
